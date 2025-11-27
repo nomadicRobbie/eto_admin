@@ -1,10 +1,5 @@
 <template>
   <div class="dashboard">
-    <header class="dashboard-header">
-      <h1>ETO Dashboard</h1>
-      <button @click="logout" class="logout-button">Logout</button>
-    </header>
-
     <div class="dashboard-content">
       <div class="orders-section">
         <div class="orders-header">
@@ -123,6 +118,7 @@ export default {
   name: "DashboardView",
   data() {
     return {
+      apiUrl: process.env.VUE_APP_API_URL || "http://localhost:4242",
       orders: [],
       loading: false,
       error: null,
@@ -143,7 +139,7 @@ export default {
       this.loading = true;
       this.error = null;
       try {
-        const response = await axios.get(`http://localhost:4242/protected/orders?status=${status}`, {
+        const response = await axios.get(`${this.apiUrl}/protected/orders?status=${status}`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
@@ -169,7 +165,7 @@ export default {
     async togglePacked(orderIdToUpdate) {
       try {
         await axios.put(
-          `http://localhost:4242/protected/orders/${orderIdToUpdate}/pack`,
+          `${this.apiUrl}/protected/orders/${orderIdToUpdate}/pack`,
           {},
           {
             headers: {
@@ -188,7 +184,7 @@ export default {
     async toggleFulfilled(orderIdToUpdate) {
       try {
         await axios.put(
-          `http://localhost:4242/protected/orders/${orderIdToUpdate}/fulfill`,
+          `${this.apiUrl}/protected/orders/${orderIdToUpdate}/fulfill`,
           {},
           {
             headers: {
@@ -227,17 +223,6 @@ export default {
     formatPaymentStatus(status) {
       return status === "succeeded" ? "Payment Completed" : "Payment Pending";
     },
-
-    logout() {
-      // Remove token from localStorage
-      localStorage.removeItem("token");
-
-      // Remove authorization header
-      delete this.$http?.defaults?.headers?.common["Authorization"];
-
-      // Redirect to login
-      this.$router.push("/login");
-    },
   },
 };
 </script>
@@ -246,38 +231,6 @@ export default {
 .dashboard {
   min-height: 100vh;
   background-color: var(--background-colour);
-}
-
-.dashboard-header {
-  background: var(--back-white);
-  padding: 20px 40px;
-  box-shadow: var(--box-shadow);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.dashboard-header h1 {
-  color: var(--text-colour);
-  margin: 0;
-  font-size: 24px;
-}
-
-.logout-button {
-  background: var(--action-colour);
-  color: var(--alt-text-colour);
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  box-shadow: var(--box-shadow);
-}
-
-.logout-button:hover {
-  background: var(--primary-colour);
-  transform: translateY(-2px);
 }
 
 .dashboard-content {

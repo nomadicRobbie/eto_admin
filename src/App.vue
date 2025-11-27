@@ -1,25 +1,38 @@
 <template>
-  <router-view />
+  <div id="app">
+    <MainNavigation />
+    <router-view />
+  </div>
 </template>
+
+<script>
+import MainNavigation from "./components/MainNavigation.vue";
+
+export default {
+  name: "App",
+  components: {
+    MainNavigation,
+  },
+};
+</script>
 
 <style>
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
+  min-height: 100vh;
+  background-color: var(--background-colour);
 }
 
-nav {
-  padding: 30px;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-nav a {
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-nav a.router-link-exact-active {
-  color: #42b983;
+body {
+  margin: 0;
+  font-family: inherit;
 }
 </style>

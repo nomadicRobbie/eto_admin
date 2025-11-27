@@ -6,26 +6,12 @@
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
           <label for="username">Username</label>
-          <input
-            id="username"
-            v-model="username"
-            type="text"
-            required
-            class="form-input"
-            placeholder="Enter your username"
-          />
+          <input id="username" v-model="username" type="text" required class="form-input" placeholder="Enter your username" />
         </div>
 
         <div class="form-group">
           <label for="password">Password</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            required
-            class="form-input"
-            placeholder="Enter your password"
-          />
+          <input id="password" v-model="password" type="password" required class="form-input" placeholder="Enter your password" />
         </div>
 
         <div v-if="error" class="error-message">
@@ -47,6 +33,7 @@ export default {
   name: "LoginView",
   data() {
     return {
+      apiUrl: process.env.VUE_APP_API_URL || "http://localhost:4242",
       username: "",
       password: "",
       loading: false,
@@ -60,7 +47,7 @@ export default {
 
       try {
         const response = await axios.post(
-          "http://localhost:4242/login",
+          `${this.apiUrl}/login`,
           {
             username: this.username,
             password: this.password,
@@ -84,8 +71,7 @@ export default {
         }
       } catch (error) {
         console.error("Login error:", error);
-        this.error =
-          error.response?.data?.message || "Login failed. Please check your credentials.";
+        this.error = error.response?.data?.message || "Login failed. Please check your credentials.";
       } finally {
         this.loading = false;
       }
