@@ -1,0 +1,17 @@
+:root {
+  --back-white: #fffcf0;
+  --background-colour: #fefae0;
+  --primary-colour: #283618;
+  --secondary-colour: #dffebe;
+  --tertiary-colour: #606c38;
+  --action-colour: #4f3920;
+  --text-colour: #231F20;
+  --alt-text-colour: #fefae0;
+  --box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.2);
+  --box-shadow-bottom: 0 20px 50px 5px rgba(0, 0, 0, 0.3);
+  --box-shadow-top: 0 -20px 50px 5px rgba(0, 0, 0, 0.3);
+  --background-fade: linear-gradient(90deg, rgba(255, 253, 238, 0.95) 0%, rgba(255, 255, 255, 0.714) 100%);
+  --nav-background-fade: rgba(254, 250, 224, 0.8);
+}
+
+
