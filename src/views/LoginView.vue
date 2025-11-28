@@ -33,8 +33,8 @@ export default {
   name: "LoginView",
   data() {
     return {
-      // apiUrl: process.env.VUE_APP_API_URL || "http://localhost:4242",
-      apiUrl: "https://eto.admin.nomadicmediastudios.com/",
+      apiUrl: process.env.VUE_APP_API_URL || "http://localhost:4242",
+      // apiUrl: "https://eto.admin.nomadicmediastudios.com/",
       username: "",
       password: "",
       loading: false,
