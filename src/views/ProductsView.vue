@@ -569,25 +569,33 @@ export default {
 
       try {
         const uploadPromises = files.map(async (file, index) => {
+          // Log original file size
+          console.log(`Processing file ${index + 1}/${files.length}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+
           let fileToUpload = file;
 
-          // Check if the file is HEIC and convert to JPG
-          if (file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) {
-            console.log(`HEIC file detected (${index + 1}/${files.length}), converting to JPG...`);
+          // Process HEIC files
+          if (this.isHeicFile(file)) {
+            console.log(`HEIC file detected, converting to JPG...`);
             fileToUpload = await this.convertHeicToJpg(file);
           }
+          // Compress large files
+          else if (!this.validateFileSize(file, 5)) {
+            console.log(`Compressing large file: ${file.name}`);
+            fileToUpload = await this.compressImage(file, 1200, 1200, 0.7);
+          }
+          // Optimize medium files
+          else if (file.size > 1024 * 1024) {
+            console.log(`Compressing for optimization: ${file.name}`);
+            fileToUpload = await this.compressImage(file, 1200, 1200, 0.8);
+          }
 
-          const formData = new FormData();
-          formData.append("file", fileToUpload);
+          // Final size check
+          if (!this.validateFileSize(fileToUpload, 10)) {
+            throw new Error(`File ${fileToUpload.name} is still too large after processing`);
+          }
 
-          const response = await axios.post(`${this.apiUrl}/api/upload`, formData, {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-              // DON'T set Content-Type - axios will handle it
-            },
-          });
-
-          return response.data;
+          return await this.uploadSingleFile(fileToUpload);
         });
 
         const uploadedImages = await Promise.all(uploadPromises);
@@ -719,33 +727,116 @@ export default {
       this.newProduct.images = [];
     },
 
+    compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
+      return new Promise((resolve) => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
+
+        img.onload = () => {
+          // Calculate new dimensions while maintaining aspect ratio
+          let { width, height } = img;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          // Draw and compress
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              // Create new file with compressed data
+              const compressedFile = new File([blob], file.name, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+
+              console.log(`Compressed ${file.name}: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+
+        img.src = URL.createObjectURL(file);
+      });
+    },
+
+    validateFileSize(file, maxSizeMB = 5) {
+      const fileSizeMB = file.size / 1024 / 1024;
+      if (fileSizeMB > maxSizeMB) {
+        console.warn(`File ${file.name} is ${fileSizeMB.toFixed(2)}MB, which exceeds ${maxSizeMB}MB limit`);
+        return false;
+      }
+      return true;
+    },
+
+    isHeicFile(file) {
+      return file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif");
+    },
+
     async convertHeicToJpg(heicFile) {
       try {
         // Dynamically import heic2any library
         const heic2any = await import("heic2any");
 
-        // Convert HEIC to JPG
+        // Convert HEIC to JPG with reduced quality
         const convertedBlob = await heic2any.default({
           blob: heicFile,
           toType: "image/jpeg",
-          quality: 0.8, // Adjust quality as needed (0.1 to 1.0)
+          quality: 0.7, // Reduced quality for smaller file size
         });
 
         // Create a new File object from the converted blob
-        const convertedFile = new File([convertedBlob], heicFile.name.replace(/\.(heic|heif)$/i, ".jpg"), {
+        const jpgFile = new File([convertedBlob], heicFile.name.replace(/\.(heic|heif)$/i, ".jpg"), {
           type: "image/jpeg",
           lastModified: Date.now(),
         });
 
-        console.log(`Converted ${heicFile.name} to ${convertedFile.name}`);
-        return convertedFile;
+        console.log(`Converted ${heicFile.name} to ${jpgFile.name}`);
+
+        // Compress the converted image if it's still too large
+        if (!this.validateFileSize(jpgFile, 5)) {
+          console.log("Converted file is still too large, compressing...");
+          return await this.compressImage(jpgFile, 1000, 1000, 0.6);
+        }
+
+        return jpgFile;
       } catch (error) {
         console.error("HEIC conversion failed:", error);
-
-        // Fallback: try to use the original file anyway
-        console.log("Attempting to upload HEIC file without conversion...");
         throw new Error("HEIC conversion failed. Please use a JPG or PNG image instead.");
       }
+    },
+
+    async uploadSingleFile(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const tokenData = JSON.parse(localStorage.getItem("tokenData"));
+      if (!tokenData || !tokenData.token) {
+        throw new Error("No authentication token found");
+      }
+
+      const response = await axios.post(`${this.apiUrl}/api/upload`, formData, {
+        headers: {
+          Authorization: `Bearer ${tokenData.token}`,
+        },
+      });
+
+      return response.data;
     },
 
     editProduct(product) {
