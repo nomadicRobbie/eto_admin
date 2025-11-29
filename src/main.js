@@ -5,8 +5,8 @@ import router from "./router";
 import store from "./store";
 import axios from "axios";
 
-// Configure axios
-axios.defaults.baseURL = process.env.VUE_APP_API_URL || "http://localhost:3000/api";
+// Configure axios - don't include /api in baseURL since we add it in individual requests
+axios.defaults.baseURL = process.env.VUE_APP_API_URL || "http://localhost:4242";
 
 // Add token to requests if available
 axios.interceptors.request.use(

@@ -132,6 +132,17 @@ export default {
     };
   },
   mounted() {
+    // Check if we have a valid token before making requests
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No token found, redirecting to login");
+      this.$router.push("/login");
+      return;
+    }
+
+    // Set axios default header
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
     this.fetchOrders("pending");
   },
   methods: {
@@ -155,6 +166,16 @@ export default {
         this.currentStatus = status;
       } catch (error) {
         console.error("Error fetching orders:", error);
+
+        // Handle 401 Unauthorized - redirect to login
+        if (error.response?.status === 401) {
+          console.error("Token expired or invalid, redirecting to login");
+          localStorage.removeItem("token");
+          delete axios.defaults.headers.common["Authorization"];
+          this.$router.push("/login");
+          return;
+        }
+
         this.error = "Failed to load orders";
         this.orders = [];
       } finally {
@@ -177,6 +198,14 @@ export default {
         await this.fetchOrders(this.currentStatus);
       } catch (error) {
         console.error("Error packing order:", error);
+
+        if (error.response?.status === 401) {
+          localStorage.removeItem("token");
+          delete axios.defaults.headers.common["Authorization"];
+          this.$router.push("/login");
+          return;
+        }
+
         this.error = "Failed to pack order";
       }
     },
@@ -196,6 +225,14 @@ export default {
         await this.fetchOrders(this.currentStatus);
       } catch (error) {
         console.error("Error fulfilling order:", error);
+
+        if (error.response?.status === 401) {
+          localStorage.removeItem("token");
+          delete axios.defaults.headers.common["Authorization"];
+          this.$router.push("/login");
+          return;
+        }
+
         this.error = "Failed to fulfill order";
       }
     },

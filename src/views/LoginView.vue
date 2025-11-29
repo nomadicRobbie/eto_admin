@@ -59,15 +59,30 @@ export default {
           }
         );
 
+        console.log("Login response:", response.data);
+
         if (response.data.token) {
+          console.log("Login successful, token received:", response.data.token.substring(0, 20) + "...");
+
           // Save token to localStorage
           localStorage.setItem("token", response.data.token);
 
           // Set axios default header for future requests
           axios.defaults.headers.common["Authorization"] = `Bearer ${response.data.token}`;
 
-          // Redirect to dashboard
-          this.$router.push("/dashboard");
+          // Verify token was saved
+          const savedToken = localStorage.getItem("token");
+          console.log("Token saved to localStorage:", !!savedToken);
+          console.log("Axios default Authorization header set:", !!axios.defaults.headers.common["Authorization"]);
+
+          // Small delay to ensure everything is set before navigation
+          setTimeout(() => {
+            this.$router.push("/dashboard");
+          }, 100);
+        } else {
+          console.error("No token received from server");
+          console.error("Full response data:", response.data);
+          this.error = "Login failed: No authentication token received";
         }
       } catch (error) {
         console.error("Login error:", error);

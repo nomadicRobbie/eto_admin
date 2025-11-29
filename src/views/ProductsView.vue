@@ -316,6 +316,17 @@ export default {
     };
   },
   mounted() {
+    // Check if we have a valid token before making requests
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No token found, redirecting to login");
+      this.$router.push("/login");
+      return;
+    }
+
+    // Set axios default header
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
     this.fetchProducts("live");
   },
   methods: {
@@ -355,6 +366,16 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching products:", error);
+
+        // Handle 401 Unauthorized - redirect to login
+        if (error.response?.status === 401) {
+          console.error("Token expired or invalid, redirecting to login");
+          localStorage.removeItem("token");
+          delete axios.defaults.headers.common["Authorization"];
+          this.$router.push("/login");
+          return;
+        }
+
         this.error = "Failed to load products";
         this.products = [];
       } finally {
@@ -377,6 +398,14 @@ export default {
         this.currentStatus = "live";
       } catch (error) {
         console.error("Error adding product:", error);
+
+        if (error.response?.status === 401) {
+          localStorage.removeItem("token");
+          delete axios.defaults.headers.common["Authorization"];
+          this.$router.push("/login");
+          return;
+        }
+
         this.error = "Failed to add product";
       } finally {
         this.addingProduct = false;
@@ -399,6 +428,14 @@ export default {
         this.currentStatus = "live";
       } catch (error) {
         console.error("Error updating product:", error);
+
+        if (error.response?.status === 401) {
+          localStorage.removeItem("token");
+          delete axios.defaults.headers.common["Authorization"];
+          this.$router.push("/login");
+          return;
+        }
+
         this.error = "Failed to update product";
       } finally {
         this.addingProduct = false;
