@@ -323,7 +323,7 @@ export default {
       this.loading = true;
       this.error = null;
       try {
-        const response = await axios.get(`${this.apiUrl}/get/products/database`, {
+        const response = await axios.get(`${this.apiUrl}/api/get/products/database`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
@@ -365,7 +365,7 @@ export default {
     async addProduct() {
       this.addingProduct = true;
       try {
-        const response = await axios.post(`${this.apiUrl}/protected/products`, this.newProduct, {
+        const response = await axios.post(`${this.apiUrl}/api/protected/products`, this.newProduct, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
@@ -387,7 +387,7 @@ export default {
       this.addingProduct = true;
       try {
         const productId = this.editingProduct.id;
-        const response = await axios.put(`${this.apiUrl}/protected/products/${productId}`, this.newProduct, {
+        const response = await axios.put(`${this.apiUrl}/api/protected/products/${productId}`, this.newProduct, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
@@ -545,7 +545,7 @@ export default {
           const formData = new FormData();
           formData.append("file", fileToUpload);
 
-          const response = await axios.post(`${this.apiUrl}/upload`, formData, {
+          const response = await axios.post(`${this.apiUrl}/api/upload`, formData, {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
               // DON'T set Content-Type - axios will handle it
@@ -595,7 +595,7 @@ export default {
         const formData = new FormData();
         formData.append("file", fileToUpload);
 
-        const response = await axios.post(`${this.apiUrl}/upload`, formData, {
+        const response = await axios.post(`${this.apiUrl}/api/upload`, formData, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },

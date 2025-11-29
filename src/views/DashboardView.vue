@@ -139,7 +139,7 @@ export default {
       this.loading = true;
       this.error = null;
       try {
-        const response = await axios.get(`${this.apiUrl}/protected/orders?status=${status}`, {
+        const response = await axios.get(`${this.apiUrl}/api/protected/orders?status=${status}`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
@@ -165,7 +165,7 @@ export default {
     async togglePacked(orderIdToUpdate) {
       try {
         await axios.put(
-          `${this.apiUrl}/protected/orders/${orderIdToUpdate}/pack`,
+          `${this.apiUrl}/api/protected/orders/${orderIdToUpdate}/pack`,
           {},
           {
             headers: {
@@ -184,7 +184,7 @@ export default {
     async toggleFulfilled(orderIdToUpdate) {
       try {
         await axios.put(
-          `${this.apiUrl}/protected/orders/${orderIdToUpdate}/fulfill`,
+          `${this.apiUrl}/api/protected/orders/${orderIdToUpdate}/fulfill`,
           {},
           {
             headers: {
