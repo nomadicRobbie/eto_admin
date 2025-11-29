@@ -64,8 +64,18 @@ export default {
         if (response.data.token) {
           console.log("Login successful, token received:", response.data.token.substring(0, 20) + "...");
 
-          // Save token to localStorage
-          localStorage.setItem("token", response.data.token);
+          // Clear any existing token data first
+          this.clearTokenData();
+
+          // Save token with timestamp for long-lasting session (30 days)
+          const tokenData = {
+            token: response.data.token,
+            timestamp: Date.now(),
+            expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+          };
+
+          localStorage.setItem("tokenData", JSON.stringify(tokenData));
+          localStorage.setItem("token", response.data.token); // Keep legacy for compatibility
 
           // Set axios default header for future requests
           axios.defaults.headers.common["Authorization"] = `Bearer ${response.data.token}`;
@@ -73,6 +83,7 @@ export default {
           // Verify token was saved
           const savedToken = localStorage.getItem("token");
           console.log("Token saved to localStorage:", !!savedToken);
+          console.log("Token will expire on:", new Date(tokenData.expiresAt).toLocaleString());
           console.log("Axios default Authorization header set:", !!axios.defaults.headers.common["Authorization"]);
 
           // Small delay to ensure everything is set before navigation
@@ -91,6 +102,37 @@ export default {
         this.loading = false;
       }
     },
+
+    clearTokenData() {
+      // Clear all token-related data
+      localStorage.removeItem("token");
+      localStorage.removeItem("tokenData");
+      delete axios.defaults.headers.common["Authorization"];
+      console.log("Token data cleared");
+    },
+
+    isTokenValid() {
+      const tokenDataString = localStorage.getItem("tokenData");
+      if (!tokenDataString) return false;
+
+      try {
+        const tokenData = JSON.parse(tokenDataString);
+        const now = Date.now();
+        return now < tokenData.expiresAt;
+      } catch (error) {
+        console.error("Invalid token data format:", error);
+        return false;
+      }
+    },
+  },
+
+  mounted() {
+    // Check if user already has a valid token
+    if (this.isTokenValid()) {
+      const tokenData = JSON.parse(localStorage.getItem("tokenData"));
+      axios.defaults.headers.common["Authorization"] = `Bearer ${tokenData.token}`;
+      this.$router.push("/dashboard");
+    }
   },
 };
 </script>

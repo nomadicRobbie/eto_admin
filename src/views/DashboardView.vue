@@ -133,15 +133,16 @@ export default {
   },
   mounted() {
     // Check if we have a valid token before making requests
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.error("No token found, redirecting to login");
+    if (!this.isTokenValid()) {
+      console.error("No valid token found, redirecting to login");
+      this.clearTokenData();
       this.$router.push("/login");
       return;
     }
 
-    // Set axios default header
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    // Set axios default header with fresh token
+    const tokenData = JSON.parse(localStorage.getItem("tokenData"));
+    axios.defaults.headers.common["Authorization"] = `Bearer ${tokenData.token}`;
 
     this.fetchOrders("pending");
   },
@@ -170,8 +171,7 @@ export default {
         // Handle 401 Unauthorized - redirect to login
         if (error.response?.status === 401) {
           console.error("Token expired or invalid, redirecting to login");
-          localStorage.removeItem("token");
-          delete axios.defaults.headers.common["Authorization"];
+          this.clearTokenData();
           this.$router.push("/login");
           return;
         }
@@ -200,8 +200,7 @@ export default {
         console.error("Error packing order:", error);
 
         if (error.response?.status === 401) {
-          localStorage.removeItem("token");
-          delete axios.defaults.headers.common["Authorization"];
+          this.clearTokenData();
           this.$router.push("/login");
           return;
         }
@@ -227,8 +226,7 @@ export default {
         console.error("Error fulfilling order:", error);
 
         if (error.response?.status === 401) {
-          localStorage.removeItem("token");
-          delete axios.defaults.headers.common["Authorization"];
+          this.clearTokenData();
           this.$router.push("/login");
           return;
         }
@@ -260,6 +258,46 @@ export default {
     formatPaymentStatus(status) {
       return status === "succeeded" ? "Payment Completed" : "Payment Pending";
     },
+
+    clearTokenData() {
+      localStorage.removeItem("token");
+      localStorage.removeItem("tokenData");
+      delete axios.defaults.headers.common["Authorization"];
+    },
+
+    isTokenValid() {
+      const tokenDataString = localStorage.getItem("tokenData");
+      if (!tokenDataString) return false;
+
+      try {
+        const tokenData = JSON.parse(tokenDataString);
+        const now = Date.now();
+        return now < tokenData.expiresAt;
+      } catch (error) {
+        console.error("Invalid token data format:", error);
+        return false;
+      }
+    },
+
+    refreshTokenTimestamp() {
+      // Extend token expiry when user is active
+      const tokenDataString = localStorage.getItem("tokenData");
+      if (tokenDataString) {
+        try {
+          const tokenData = JSON.parse(tokenDataString);
+          tokenData.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // Extend by 30 days
+          localStorage.setItem("tokenData", JSON.stringify(tokenData));
+          console.log("Token expiry extended to:", new Date(tokenData.expiresAt).toLocaleString());
+        } catch (error) {
+          console.error("Failed to refresh token timestamp:", error);
+        }
+      }
+    },
+  },
+
+  created() {
+    // Refresh token timestamp when component loads (user activity)
+    this.refreshTokenTimestamp();
   },
 };
 </script>

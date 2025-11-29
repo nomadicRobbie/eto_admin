@@ -317,15 +317,16 @@ export default {
   },
   mounted() {
     // Check if we have a valid token before making requests
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.error("No token found, redirecting to login");
+    if (!this.isTokenValid()) {
+      console.error("No valid token found, redirecting to login");
+      this.clearTokenData();
       this.$router.push("/login");
       return;
     }
 
-    // Set axios default header
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    // Set axios default header with fresh token
+    const tokenData = JSON.parse(localStorage.getItem("tokenData"));
+    axios.defaults.headers.common["Authorization"] = `Bearer ${tokenData.token}`;
 
     this.fetchProducts("live");
   },
@@ -370,8 +371,7 @@ export default {
         // Handle 401 Unauthorized - redirect to login
         if (error.response?.status === 401) {
           console.error("Token expired or invalid, redirecting to login");
-          localStorage.removeItem("token");
-          delete axios.defaults.headers.common["Authorization"];
+          this.clearTokenData();
           this.$router.push("/login");
           return;
         }
@@ -400,8 +400,7 @@ export default {
         console.error("Error adding product:", error);
 
         if (error.response?.status === 401) {
-          localStorage.removeItem("token");
-          delete axios.defaults.headers.common["Authorization"];
+          this.clearTokenData();
           this.$router.push("/login");
           return;
         }
@@ -430,8 +429,7 @@ export default {
         console.error("Error updating product:", error);
 
         if (error.response?.status === 401) {
-          localStorage.removeItem("token");
-          delete axios.defaults.headers.common["Authorization"];
+          this.clearTokenData();
           this.$router.push("/login");
           return;
         }

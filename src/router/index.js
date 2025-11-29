@@ -32,14 +32,32 @@ const router = createRouter({
   routes,
 });
 
+// Token validation helper
+function isTokenValid() {
+  const tokenDataString = localStorage.getItem("tokenData");
+  if (!tokenDataString) return false;
+
+  try {
+    const tokenData = JSON.parse(tokenDataString);
+    const now = Date.now();
+    return now < tokenData.expiresAt;
+  } catch (error) {
+    console.error("Invalid token data format:", error);
+    return false;
+  }
+}
+
 // Route guard for authentication
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem("token");
+  const hasValidToken = isTokenValid();
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
 
-  if (requiresAuth && !token) {
+  if (requiresAuth && !hasValidToken) {
+    // Clear invalid/expired token data
+    localStorage.removeItem("token");
+    localStorage.removeItem("tokenData");
     next("/login");
-  } else if (to.name === "login" && token) {
+  } else if (to.name === "login" && hasValidToken) {
     next("/dashboard");
   } else {
     next();
