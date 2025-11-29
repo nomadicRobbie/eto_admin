@@ -93,13 +93,13 @@
                     class="file-input"
                     :disabled="uploadingImage || getAllImages().length >= 10" />
                   <span v-if="uploadingImage" class="upload-status">Processing & uploading...</span>
-                  <span class="file-format-info"> Supports: JPG, PNG, WEBP, HEIC | {{ getAllImages().length }}/10 images </span>
+                  <span class="file-format-info"> Supports: JPG, PNG, WEBP, HEIC, GIF | {{ getAllImages().length }}/10 images </span>
                 </div>
 
                 <!-- Show all image previews -->
                 <div v-if="getAllImages().length > 0" class="images-grid">
                   <div v-for="(image, index) in getAllImages()" :key="index" class="image-preview-item">
-                    <img :src="processImageData(image)" :alt="`Product image ${index + 1}`" class="preview-img" />
+                    <img :src="image" :alt="`Product image ${index + 1}`" class="preview-img" @error="handleImageError" @load="handleImageLoad" />
                     <div class="image-controls">
                       <button type="button" @click="setMainImage(index)" :class="['main-btn', { active: index === 0 }]" :disabled="index === 0">
                         {{ index === 0 ? "Main" : "Set Main" }}
@@ -188,7 +188,7 @@
 
             <!-- Product Image -->
             <div class="product-image" v-if="product.image1">
-              <img :src="processImageData(product.image1)" :alt="product.title" @error="handleImageError" />
+              <img :src="product.image1" :alt="product.title" @error="handleImageError" />
             </div>
 
             <!-- Product Description -->
@@ -276,6 +276,7 @@
 
 <script>
 import axios from "axios";
+import heic2any from "heic2any";
 
 export default {
   name: "ProductsView",
@@ -566,55 +567,42 @@ export default {
       }
 
       this.uploadingImage = true;
+      this.error = null;
 
       try {
-        const uploadPromises = files.map(async (file, index) => {
-          // Log original file size
-          console.log(`Processing file ${index + 1}/${files.length}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+        console.log(`Uploading ${files.length} file(s) to Cloudinary...`);
 
-          let fileToUpload = file;
-
-          // Process HEIC files
-          if (this.isHeicFile(file)) {
-            console.log(`HEIC file detected, converting to JPG...`);
-            fileToUpload = await this.convertHeicToJpg(file);
-          }
-          // Compress large files
-          else if (!this.validateFileSize(file, 5)) {
-            console.log(`Compressing large file: ${file.name}`);
-            fileToUpload = await this.compressImage(file, 1200, 1200, 0.7);
-          }
-          // Optimize medium files
-          else if (file.size > 1024 * 1024) {
-            console.log(`Compressing for optimization: ${file.name}`);
-            fileToUpload = await this.compressImage(file, 1200, 1200, 0.8);
-          }
-
-          // Final size check
-          if (!this.validateFileSize(fileToUpload, 10)) {
-            throw new Error(`File ${fileToUpload.name} is still too large after processing`);
-          }
-
-          return await this.uploadSingleFile(fileToUpload);
-        });
-
-        const uploadedImages = await Promise.all(uploadPromises);
+        // Upload files one by one since Cloudinary returns single URL per request
+        const uploadedUrls = [];
+        for (let file of files) {
+          const uploadResult = await this.uploadImages([file]);
+          uploadedUrls.push(uploadResult);
+        }
 
         // Add all uploaded images to images array
-        uploadedImages.forEach((imageData) => {
-          this.newProduct.images.push(imageData);
+        uploadedUrls.forEach((imageUrl) => {
+          // Ensure we're adding the URL string, not the object
+          const urlString = typeof imageUrl === "object" && imageUrl.url ? imageUrl.url : imageUrl;
+          this.newProduct.images.push(urlString);
         });
 
         // If this was the first upload, set the first image as main
-        if (currentCount === 0 && uploadedImages.length > 0) {
-          this.newProduct.image1 = uploadedImages[0];
+        if (currentCount === 0 && uploadedUrls.length > 0) {
+          const mainUrl = typeof uploadedUrls[0] === "object" && uploadedUrls[0].url ? uploadedUrls[0].url : uploadedUrls[0];
+          this.newProduct.image1 = mainUrl;
         }
+
+        console.log(`Successfully uploaded ${uploadedUrls.length} image(s)`);
 
         // Clear the file input
         event.target.value = "";
       } catch (error) {
-        console.error("Upload error:", error.response?.data);
-        this.error = error.message || "Failed to upload images";
+        console.error("Upload error:", error.response?.data || error.message);
+        if (error.message && error.message.includes("File size too large")) {
+          this.error = "File too large. Images are compressed but may still exceed limits. Try smaller images.";
+        } else {
+          this.error = error.message || "Failed to upload images";
+        }
       } finally {
         this.uploadingImage = false;
       }
@@ -625,100 +613,21 @@ export default {
       if (!file) return;
 
       this.uploadingImage = true;
+      this.error = null;
 
       try {
-        let fileToUpload = file;
+        console.log(`Uploading single file to Cloudinary: ${file.name}`);
 
-        // Check if the file is HEIC and convert to JPG
-        if (file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) {
-          console.log("HEIC file detected, converting to JPG...");
-          fileToUpload = await this.convertHeicToJpg(file);
-        }
+        const imageUrl = await this.uploadImages([file]);
+        this.newProduct.image1 = imageUrl;
 
-        const formData = new FormData();
-        formData.append("file", fileToUpload);
-
-        const response = await axios.post(`${this.apiUrl}/api/upload`, formData, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
-
-        this.newProduct.image1 = response.data;
+        console.log(`Successfully uploaded image: ${imageUrl}`);
       } catch (error) {
-        console.error("Upload error:", error.response?.data);
+        console.error("Upload error:", error.response?.data || error.message);
         this.error = error.message || "Failed to upload image";
       } finally {
         this.uploadingImage = false;
       }
-    },
-
-    processImageData(imageData) {
-      // Handle null, undefined, or empty values
-      if (!imageData) {
-        return "";
-      }
-
-      // Handle string URLs
-      if (typeof imageData === "string") {
-        // If it's already a full URL with the correct server, return as is
-        if (imageData.startsWith(`${this.apiUrl}/`)) {
-          return imageData;
-        }
-
-        // If it's a data URL (base64), return as is
-        if (imageData.startsWith("data:")) {
-          return imageData;
-        }
-
-        // If it's a full URL with wrong server, fix the server
-        if (imageData.startsWith("http://") || imageData.startsWith("https://")) {
-          try {
-            const urlPath = new URL(imageData).pathname;
-            return `${this.apiUrl}${urlPath}`;
-          } catch (error) {
-            console.warn("Invalid URL:", imageData);
-            return "";
-          }
-        }
-
-        // If it's a relative path, make it absolute with correct server
-        if (imageData.startsWith("/")) {
-          return `${this.apiUrl}${imageData}`;
-        }
-
-        // If it's just a filename, assume it's in uploads
-        if (imageData && imageData.length > 0) {
-          return `${this.apiUrl}/uploads/${imageData}`;
-        }
-      }
-
-      // Handle object responses from API
-      if (imageData && typeof imageData === "object") {
-        if (imageData.type === "base64" && imageData.data && imageData.content_type) {
-          // Small file - return as data URL
-          return `data:${imageData.content_type};base64,${imageData.data}`;
-        }
-
-        if (imageData.url) {
-          // Large file - ensure URL points to correct server
-          if (imageData.url.startsWith(`${this.apiUrl}/`)) {
-            return imageData.url;
-          }
-          if (imageData.url.startsWith("/")) {
-            return `${this.apiUrl}${imageData.url}`;
-          }
-          return `${this.apiUrl}/uploads/${imageData.url}`;
-        }
-
-        // If object doesn't have expected properties, log and return empty
-        console.warn("Unexpected image data object:", imageData);
-        return "";
-      }
-
-      // Fallback for any other type
-      console.warn("Unexpected image data type:", typeof imageData, imageData);
-      return "";
     },
 
     removeImage() {
@@ -727,116 +636,180 @@ export default {
       this.newProduct.images = [];
     },
 
-    compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
+    isHeicFile(file) {
+      const fileName = file.name.toLowerCase();
+      const fileType = file.type.toLowerCase();
+      return fileName.endsWith(".heic") || fileName.endsWith(".heif") || fileType.includes("heic") || fileType.includes("heif");
+    },
+
+    async convertHeicToJpeg(file) {
+      try {
+        console.log(`Converting HEIC file: ${file.name}`);
+
+        // Use heic2any to convert HEIC to JPEG
+        const jpegBlob = await heic2any({
+          blob: file,
+          toType: "image/jpeg",
+          quality: 0.9,
+        });
+
+        // Create a new File object with .jpg extension
+        const jpegFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+        const convertedFile = new File([jpegBlob], jpegFileName, {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
+
+        console.log(`Successfully converted ${file.name} to JPEG`);
+        return convertedFile;
+      } catch (error) {
+        console.error(`Failed to convert HEIC file ${file.name}:`, error);
+        throw new Error(`HEIC conversion failed for ${file.name}`);
+      }
+    },
+
+    async convertImageToJpeg(file) {
       return new Promise((resolve) => {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         const img = new Image();
 
         img.onload = () => {
-          // Calculate new dimensions while maintaining aspect ratio
-          let { width, height } = img;
-
-          if (width > height) {
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = (width * maxHeight) / height;
-              height = maxHeight;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          // Draw and compress
-          ctx.drawImage(img, 0, 0, width, height);
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
 
           canvas.toBlob(
             (blob) => {
-              // Create new file with compressed data
-              const compressedFile = new File([blob], file.name, {
+              const jpegFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+              const convertedFile = new File([blob], jpegFileName, {
                 type: "image/jpeg",
                 lastModified: Date.now(),
               });
-
-              console.log(`Compressed ${file.name}: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
-              resolve(compressedFile);
+              console.log(`Converted ${file.name} to JPEG format`);
+              resolve(convertedFile);
             },
             "image/jpeg",
-            quality
+            0.9
           );
+        };
+
+        img.onerror = () => {
+          console.error(`Failed to convert ${file.name}`);
+          resolve(file); // Return original if conversion fails
         };
 
         img.src = URL.createObjectURL(file);
       });
     },
 
-    validateFileSize(file, maxSizeMB = 5) {
-      const fileSizeMB = file.size / 1024 / 1024;
-      if (fileSizeMB > maxSizeMB) {
-        console.warn(`File ${file.name} is ${fileSizeMB.toFixed(2)}MB, which exceeds ${maxSizeMB}MB limit`);
-        return false;
-      }
-      return true;
+    async compressImage(file, maxSizeMB = 8) {
+      return new Promise((resolve) => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
+
+        img.onload = () => {
+          // Calculate new dimensions to reduce file size
+          let { width, height } = img;
+          const maxDimension = 1920; // Max width or height
+
+          if (width > height && width > maxDimension) {
+            height = (height * maxDimension) / width;
+            width = maxDimension;
+          } else if (height > maxDimension) {
+            width = (width * maxDimension) / height;
+            height = maxDimension;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Start with high quality and reduce if needed
+          let quality = 0.8;
+
+          const tryCompress = () => {
+            canvas.toBlob(
+              (blob) => {
+                if (blob.size <= maxSizeMB * 1024 * 1024 || quality <= 0.1) {
+                  // Create a new File object with .jpg extension
+                  const jpgFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                  const compressedFile = new File([blob], jpgFileName, {
+                    type: "image/jpeg",
+                    lastModified: Date.now(),
+                  });
+                  console.log(`Compressed ${file.name}: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+                  resolve(compressedFile);
+                } else {
+                  quality -= 0.1;
+                  tryCompress();
+                }
+              },
+              "image/jpeg",
+              quality
+            );
+          };
+
+          tryCompress();
+        };
+
+        img.src = URL.createObjectURL(file);
+      });
     },
 
-    isHeicFile(file) {
-      return file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif");
-    },
-
-    async convertHeicToJpg(heicFile) {
-      try {
-        // Dynamically import heic2any library
-        const heic2any = await import("heic2any");
-
-        // Convert HEIC to JPG with reduced quality
-        const convertedBlob = await heic2any.default({
-          blob: heicFile,
-          toType: "image/jpeg",
-          quality: 0.7, // Reduced quality for smaller file size
-        });
-
-        // Create a new File object from the converted blob
-        const jpgFile = new File([convertedBlob], heicFile.name.replace(/\.(heic|heif)$/i, ".jpg"), {
-          type: "image/jpeg",
-          lastModified: Date.now(),
-        });
-
-        console.log(`Converted ${heicFile.name} to ${jpgFile.name}`);
-
-        // Compress the converted image if it's still too large
-        if (!this.validateFileSize(jpgFile, 5)) {
-          console.log("Converted file is still too large, compressing...");
-          return await this.compressImage(jpgFile, 1000, 1000, 0.6);
-        }
-
-        return jpgFile;
-      } catch (error) {
-        console.error("HEIC conversion failed:", error);
-        throw new Error("HEIC conversion failed. Please use a JPG or PNG image instead.");
-      }
-    },
-
-    async uploadSingleFile(file) {
+    async uploadImages(files) {
       const formData = new FormData();
-      formData.append("file", file);
+
+      // Process images before upload
+      for (let file of files) {
+        try {
+          let processedFile = file;
+
+          // Handle HEIC files with heic2any library
+          if (this.isHeicFile(file)) {
+            console.log(`HEIC detected: ${file.name}, converting with heic2any...`);
+            processedFile = await this.convertHeicToJpeg(file);
+          } else {
+            // For other formats, convert to JPEG
+            processedFile = await this.convertImageToJpeg(file);
+          }
+
+          // Compress all processed images
+          const compressedFile = await this.compressImage(processedFile);
+          formData.append("file", compressedFile);
+        } catch (error) {
+          console.error("Image processing failed, uploading original:", error);
+          formData.append("file", file);
+        }
+      }
 
       const tokenData = JSON.parse(localStorage.getItem("tokenData"));
       if (!tokenData || !tokenData.token) {
         throw new Error("No authentication token found");
       }
 
-      const response = await axios.post(`${this.apiUrl}/api/upload`, formData, {
-        headers: {
-          Authorization: `Bearer ${tokenData.token}`,
-        },
-      });
+      try {
+        const response = await axios.post(`${this.apiUrl}/api/upload`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${tokenData.token}`,
+          },
+        });
+        console.log("Cloudinary response:", response.data);
 
-      return response.data;
+        // Handle Cloudinary response format: { url: "https://res.cloudinary.com/..." }
+        if (response.data && response.data.url) {
+          return response.data.url;
+        }
+
+        // Fallback: return the raw response data
+        return response.data;
+      } catch (err) {
+        console.error("Upload failed", err);
+        throw err;
+      }
     },
 
     editProduct(product) {
@@ -856,9 +829,7 @@ export default {
       if (product.images && Array.isArray(product.images)) {
         product.images.forEach((img) => {
           // Check if this image is different from main image
-          const imgUrl = this.processImageData(img);
-          const mainUrl = product.image1 ? this.processImageData(product.image1) : "";
-          if (imgUrl !== mainUrl) {
+          if (img !== product.image1) {
             existingImages.push(img);
           }
         });
@@ -909,7 +880,12 @@ export default {
     },
 
     handleImageError(event) {
+      console.error("Image failed to load:", event.target.src);
       event.target.style.display = "none";
+    },
+
+    handleImageLoad(event) {
+      console.log("Image loaded successfully:", event.target.src);
     },
 
     clearTokenData() {
