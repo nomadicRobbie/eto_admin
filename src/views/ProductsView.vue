@@ -820,6 +820,45 @@ export default {
     handleImageError(event) {
       event.target.style.display = "none";
     },
+
+    clearTokenData() {
+      localStorage.removeItem("token");
+      localStorage.removeItem("tokenData");
+      delete axios.defaults.headers.common["Authorization"];
+    },
+
+    isTokenValid() {
+      const tokenDataString = localStorage.getItem("tokenData");
+      if (!tokenDataString) return false;
+
+      try {
+        const tokenData = JSON.parse(tokenDataString);
+        const now = Date.now();
+        return now < tokenData.expiresAt;
+      } catch (error) {
+        console.error("Invalid token data format:", error);
+        return false;
+      }
+    },
+
+    refreshTokenTimestamp() {
+      // Extend token expiry when user is active
+      const tokenDataString = localStorage.getItem("tokenData");
+      if (tokenDataString) {
+        try {
+          const tokenData = JSON.parse(tokenDataString);
+          tokenData.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // Extend by 30 days
+          localStorage.setItem("tokenData", JSON.stringify(tokenData));
+        } catch (error) {
+          console.error("Failed to refresh token timestamp:", error);
+        }
+      }
+    },
+  },
+
+  created() {
+    // Refresh token timestamp when component loads (user activity)
+    this.refreshTokenTimestamp();
   },
   watch: {
     "newProduct.sizes": {
