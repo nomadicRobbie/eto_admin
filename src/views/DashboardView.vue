@@ -151,9 +151,15 @@ export default {
       this.loading = true;
       this.error = null;
       try {
+        // Get token from new token data system
+        const tokenData = JSON.parse(localStorage.getItem("tokenData"));
+        if (!tokenData || !tokenData.token) {
+          throw new Error("No valid token found");
+        }
+
         const response = await axios.get(`${this.apiUrl}/api/protected/orders?status=${status}`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${tokenData.token}`,
           },
         });
 
@@ -185,12 +191,18 @@ export default {
 
     async togglePacked(orderIdToUpdate) {
       try {
+        // Get token from new token data system
+        const tokenData = JSON.parse(localStorage.getItem("tokenData"));
+        if (!tokenData || !tokenData.token) {
+          throw new Error("No valid token found");
+        }
+
         await axios.put(
           `${this.apiUrl}/api/protected/orders/${orderIdToUpdate}/pack`,
           {},
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              Authorization: `Bearer ${tokenData.token}`,
             },
           }
         );
@@ -211,12 +223,18 @@ export default {
 
     async toggleFulfilled(orderIdToUpdate) {
       try {
+        // Get token from new token data system
+        const tokenData = JSON.parse(localStorage.getItem("tokenData"));
+        if (!tokenData || !tokenData.token) {
+          throw new Error("No valid token found");
+        }
+
         await axios.put(
           `${this.apiUrl}/api/protected/orders/${orderIdToUpdate}/fulfill`,
           {},
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              Authorization: `Bearer ${tokenData.token}`,
             },
           }
         );
